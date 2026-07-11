@@ -94,20 +94,23 @@ export class NormalizedCache<TRegistry extends ModelRegistry> {
     this.runWithBroadcastOption(options, () => {
       const table = this.tableFor(modelName);
       if (id in table) {
-        delete table[id];
+        // Bump before mutating: the proxy write below notifies subscribers
+        // synchronously, so the version must already reflect this change by
+        // the time any listener (e.g. a React re-render) reads the cache.
         this.memo.bumpVersion();
+        delete table[id];
       }
     });
   }
 
   clear(): void {
+    this.memo.bumpVersion();
     for (const modelName of Object.keys(this.models)) {
       const table = this.tableFor(modelName);
       for (const id of Object.keys(table)) {
         delete table[id];
       }
     }
-    this.memo.bumpVersion();
   }
 
   subscribe(callback: () => void): () => void {
@@ -161,8 +164,9 @@ export class NormalizedCache<TRegistry extends ModelRegistry> {
 
     const merged = existing ? { ...existing, ...ownFields } : { ...ownFields };
     if (!existing || !shallowEqual(existing as unknown as Record<string, unknown>, merged)) {
-      table[data.id] = merged as Entity;
+      // Bump before mutating: see the comment in `delete`.
       this.memo.bumpVersion();
+      table[data.id] = merged as Entity;
     }
 
     for (const [as, value] of relationFields) {
@@ -197,8 +201,8 @@ export class NormalizedCache<TRegistry extends ModelRegistry> {
     const newIds = new Set(children.map((child) => child.id));
     for (const [childId, childRow] of Object.entries(childTable)) {
       if ((childRow as any)[foreignKey] === parentId && !newIds.has(childId)) {
-        delete childTable[childId];
         this.memo.bumpVersion();
+        delete childTable[childId];
       }
     }
 
@@ -218,8 +222,8 @@ export class NormalizedCache<TRegistry extends ModelRegistry> {
 
     for (const [childId, childRow] of Object.entries(childTable)) {
       if ((childRow as any)[foreignKey] === parentId && childId !== child?.id) {
-        delete childTable[childId];
         this.memo.bumpVersion();
+        delete childTable[childId];
       }
     }
 

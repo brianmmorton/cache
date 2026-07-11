@@ -14,7 +14,9 @@ describe("useModelAll", () => {
 
     function TestComponent() {
       const users = useModelAll("User");
-      return <div data-testid="result">{users.map((u) => u.name).join(",")}</div>;
+      return (
+        <div data-testid="result">{users.map((u) => u.name).join(",")}</div>
+      );
     }
 
     render(<TestComponent />);
@@ -57,7 +59,9 @@ describe("useModelAll", () => {
     const useModelAll = createUseModelAll(cache);
 
     function TestComponent() {
-      const names = useModelAll("User", (users) => users.map((u) => u.name).join(","));
+      const names = useModelAll("User", (users) =>
+        users.map((u) => u.name).join(","),
+      );
       return <div data-testid="result">{names}</div>;
     }
 
@@ -78,7 +82,9 @@ describe("useModelAll", () => {
     const renderSpy = vi.fn();
 
     function TestComponent() {
-      const names = useModelAll("User", (users) => users.map((u) => u.name).join(","));
+      const names = useModelAll("User", (users) =>
+        users.map((u) => u.name).join(","),
+      );
       renderSpy();
       return <div data-testid="result">{names}</div>;
     }
