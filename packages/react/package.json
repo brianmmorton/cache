@@ -1,6 +1,6 @@
 {
   "name": "@normalized-cache/react",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "React hooks (useModel, useModelAll) for @normalized-cache/core with selector-based rerender control.",
   "license": "MIT",
   "author": "brianmmorton",
@@ -23,7 +23,9 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
