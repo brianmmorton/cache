@@ -1,6 +1,6 @@
 {
   "name": "@normalized-cache/core",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A typed, normalized entity cache with valtio-powered reactivity and model relationships.",
   "license": "MIT",
   "author": "brianmmorton",
