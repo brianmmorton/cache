@@ -136,6 +136,15 @@ function main() {
   writeJson(reactPkgPath, reactPkg);
   console.log(`Bumped both package.json files to ${nextVersion}.\n`);
 
+  // `pnpm publish` refuses to run against a dirty working tree, so the
+  // version bump must be committed before publishing (in dry-run mode we
+  // skip git entirely instead, via --no-git-checks, and just restore the
+  // files afterward).
+  if (!dryRun) {
+    run("git", ["add", corePkgPath, reactPkgPath], { cwd: rootDir });
+    run("git", ["commit", "-m", `Release v${nextVersion}`], { cwd: rootDir });
+  }
+
   const publishArgs = [
     "publish",
     "--access",
@@ -143,15 +152,39 @@ function main() {
     ...(dryRun ? ["--dry-run", "--no-git-checks"] : []),
   ];
 
+  let corePublished = false;
   try {
     console.log(`Publishing @normalized-cache/core@${nextVersion}...`);
     run("pnpm", publishArgs, { cwd: packageDirs.core });
+    corePublished = true;
 
     console.log(`\nPublishing @normalized-cache/react@${nextVersion}...`);
     run("pnpm", publishArgs, { cwd: packageDirs.react });
   } catch (error) {
-    console.error(`\nPublish step failed. Restoring the original package.json contents...`);
-    restoreOriginalPackageFiles();
+    if (dryRun) {
+      console.error(`\nPublish step failed. Restoring the original package.json contents...`);
+      restoreOriginalPackageFiles();
+    } else if (!corePublished) {
+      // Nothing went out to npm yet, so it's safe to fully undo the release
+      // commit along with it.
+      console.error(
+        `\nPublish step failed before anything was published. Undoing the "Release v${nextVersion}" commit...`,
+      );
+      run("git", ["reset", "--hard", "HEAD~1"], { cwd: rootDir });
+    } else {
+      // core is already live on npm (unpublishing is disruptive and often
+      // not possible) — leave the release commit as-is, since it accurately
+      // describes what's now partially published, and surface next steps.
+      console.error(
+        `\n@normalized-cache/core@${nextVersion} was published, but ` +
+          `@normalized-cache/react@${nextVersion} failed to publish.\n` +
+          `The "Release v${nextVersion}" commit was left in place since core is already live.\n` +
+          `Fix the react publish issue and run, from packages/react:\n` +
+          `  pnpm publish --access public\n` +
+          `then tag manually with:\n` +
+          `  git tag v${nextVersion}`,
+      );
+    }
     throw error;
   }
 
@@ -163,8 +196,6 @@ function main() {
     return;
   }
 
-  run("git", ["add", corePkgPath, reactPkgPath], { cwd: rootDir });
-  run("git", ["commit", "-m", `Release v${nextVersion}`], { cwd: rootDir });
   run("git", ["tag", `v${nextVersion}`], { cwd: rootDir });
 
   console.log(`\nDone. Published and tagged v${nextVersion}.`);
