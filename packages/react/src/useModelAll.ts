@@ -1,5 +1,6 @@
 import { useCallback, useRef, useSyncExternalStore } from "react";
 import type { NormalizedCache, ModelRegistry, DenormalizedEntityFor } from "@normalized-cache/core";
+import { shallowEqual } from "./shallowEqual";
 
 export type UseModelAllSelector<
   TRegistry extends ModelRegistry,
@@ -7,22 +8,18 @@ export type UseModelAllSelector<
   TSelected,
 > = (entities: DenormalizedEntityFor<TRegistry, TName>[]) => TSelected;
 
-function shallowArrayEqual(a: unknown[], b: unknown[]): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  for (let i = 0; i < a.length; i += 1) {
-    if (!Object.is(a[i], b[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
 /**
  * Creates a `useModelAll` hook bound to a specific cache instance. Reads all
  * entities for a model, applying `selector` so the component only
  * re-renders when the selected value changes.
+ *
+ * Like `useModel`, this is built on `useSyncExternalStore`, so `getSnapshot`
+ * must return a referentially stable value when nothing has changed. A
+ * `selector` that derives a new array/object every call (e.g.
+ * `entities => entities.map(e => e.id)`) is compared against the previous
+ * output with a one-level-deep shallow equality check, so the cached
+ * reference is reused when the derived value hasn't actually changed. See
+ * `shallowEqual` in `./shallowEqual.ts` for details.
  */
 export function createUseModelAll<TRegistry extends ModelRegistry>(
   cache: NormalizedCache<TRegistry>,
@@ -43,14 +40,8 @@ export function createUseModelAll<TRegistry extends ModelRegistry>(
       );
 
       const prev = lastValueRef.current;
-      if (prev) {
-        const isEqual =
-          Array.isArray(prev.value) && Array.isArray(nextValue)
-            ? shallowArrayEqual(prev.value, nextValue)
-            : Object.is(prev.value, nextValue);
-        if (isEqual) {
-          return prev.value;
-        }
+      if (prev && shallowEqual(prev.value, nextValue)) {
+        return prev.value;
       }
 
       lastValueRef.current = { value: nextValue };

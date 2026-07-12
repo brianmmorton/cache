@@ -234,6 +234,86 @@ describe("useModel", () => {
     expect(renderSpy.mock.calls.length).toBe(rendersAfterMount);
   });
 
+  it("does not loop when the selector always returns a new array reference", () => {
+    const cache = createTestCache();
+    cache.set("User", {
+      id: "u1",
+      name: "Ada",
+      email: "ada@example.com",
+      posts: [
+        { id: "p1", title: "First post" },
+        { id: "p2", title: "Second post" },
+      ],
+    } as any);
+    const useModel = createUseModel(cache);
+    const renderSpy = vi.fn();
+
+    function TestComponent() {
+      // Always allocates a new array, even when `posts` hasn't changed.
+      const ids = useModel("User", "u1", (user) => user.posts.map((p) => p.id));
+      renderSpy();
+      return <div data-testid="result">{ids.join(",")}</div>;
+    }
+
+    expect(() => render(<TestComponent />)).not.toThrow();
+    expect(screen.getByTestId("result").textContent).toBe("p1,p2");
+    // A well-behaved component settles after mount; a getSnapshot loop
+    // would keep re-rendering indefinitely (and React would eventually
+    // throw "Maximum update depth exceeded").
+    expect(renderSpy.mock.calls.length).toBeLessThanOrEqual(2);
+  });
+
+  it("re-renders when a selector deriving a new array actually changes", () => {
+    const cache = createTestCache();
+    cache.set("User", {
+      id: "u1",
+      name: "Ada",
+      email: "ada@example.com",
+      posts: [{ id: "p1", title: "First post" }],
+    } as any);
+    const useModel = createUseModel(cache);
+    const renderSpy = vi.fn();
+
+    function TestComponent() {
+      const ids = useModel("User", "u1", (user) => user.posts.map((p) => p.id));
+      renderSpy();
+      return <div data-testid="result">{ids.join(",")}</div>;
+    }
+
+    render(<TestComponent />);
+    expect(screen.getByTestId("result").textContent).toBe("p1");
+    const rendersAfterMount = renderSpy.mock.calls.length;
+
+    act(() => {
+      cache.set("Post", { id: "p2", userId: "u1", title: "Second post" });
+    });
+
+    expect(screen.getByTestId("result").textContent).toBe("p1,p2");
+    expect(renderSpy.mock.calls.length).toBeGreaterThan(rendersAfterMount);
+  });
+
+  it("does not re-render when a selector returning a new plain object is unchanged", () => {
+    const cache = createTestCache();
+    cache.set("User", { id: "u1", name: "Ada", email: "ada@example.com" });
+    const useModel = createUseModel(cache);
+    const renderSpy = vi.fn();
+
+    function TestComponent() {
+      const summary = useModel("User", "u1", (user) => ({ name: user.name }));
+      renderSpy();
+      return <div data-testid="result">{summary?.name}</div>;
+    }
+
+    render(<TestComponent />);
+    const rendersAfterMount = renderSpy.mock.calls.length;
+
+    act(() => {
+      cache.set("User", { id: "u1", email: "ada-new@example.com" } as any);
+    });
+
+    expect(renderSpy.mock.calls.length).toBe(rendersAfterMount);
+  });
+
   it("does not re-render when an unselected nested relation field changes", () => {
     const cache = createTestCache();
     cache.set("User", {
